@@ -7,7 +7,8 @@
 @param hardwareSerial - Serial, Serial1, Serial2,... - an optional serial port, for example for Bluetooth communication
 @param maxNumberOfBoards - maximum number of boards
 */
-Mrm_lid_can_b::Mrm_lid_can_b(Robot* robot, uint8_t maxNumberOfBoards) : SensorBoard(robot, 1, "Lid2m", maxNumberOfBoards, ID_MRM_LID_CAN_B) {
+Mrm_lid_can_b::Mrm_lid_can_b(Robot* robot, uint8_t maxNumberOfBoards) : 
+	SensorBoard(robot, 1, "Lid2m", maxNumberOfBoards, ID_MRM_LID_CAN_B, 1) {
 	readings = new std::vector<uint16_t>(maxNumberOfBoards);
 }
 
@@ -106,6 +107,22 @@ void Mrm_lid_can_b::calibration(uint8_t deviceNumber){
 	}
 }
 
+/** Distance in mm
+@param deviceNumber - Device's ordinal number. Each call of function add() assigns a increasing number to the device, starting with 0.
+@return - distance in mm
+*/
+uint16_t Mrm_lid_can_b::distance(uint8_t deviceNumber){
+	if (deviceNumber > nextFree) {
+		strcpy(errorMessage, "mrm-lid-can-b doesn't exist");
+		return 0;
+	}
+	alive(deviceNumber, true);
+	if (started(deviceNumber))
+		return (*readings)[deviceNumber];
+	else
+		return 0;
+}
+
 /** Read CAN Bus message into local variables
 @param canId - CAN Bus id
 @param data - 8 bytes from CAN Bus message.
@@ -123,7 +140,7 @@ bool Mrm_lid_can_b::messageDecode(uint32_t canId, uint8_t data[8]){
 				}
 				break;
 				default:
-					print("Unknown command. ");
+					robotContainer->print("Unknown command. ");
 					messagePrint(canId, 8, data, false);
 					errorCode = 206;
 					errorInDeviceNumber = deviceNumber;
@@ -150,29 +167,22 @@ void Mrm_lid_can_b::rangingType(uint8_t deviceNumber, uint8_t value) {
 	}
 }
 
-/** Distance in mm
+/** Analog readings
+@param receiverNumberInSensor - always 0
 @param deviceNumber - Device's ordinal number. Each call of function add() assigns a increasing number to the device, starting with 0.
-@return - distance in mm
+@return - analog value
 */
-uint16_t Mrm_lid_can_b::reading(uint8_t deviceNumber){
-	if (deviceNumber > nextFree) {
-		strcpy(errorMessage, "mrm-lid-can-b doesn't exist");
-		return 0;
-	}
-	alive(deviceNumber, true);
-	if (started(deviceNumber))
-		return (*readings)[deviceNumber];
-	else
-		return 0;
+uint16_t Mrm_lid_can_b::reading(uint8_t receiverNumberInSensor, uint8_t deviceNumber){
+	return distance(deviceNumber);
 }
 
 /** Print all readings in a line
 */
 void Mrm_lid_can_b::readingsPrint() {
-	print("Lid2m:");
+	robotContainer->print("Lid2m:");
 	for (uint8_t deviceNumber = 0; deviceNumber < nextFree; deviceNumber++)
 		if (alive(deviceNumber))
-			print(" %4i", reading(deviceNumber));
+			robotContainer->print(" %4i", distance(deviceNumber));
 }
 
 /** If sensor not started, start it and wait for 1. message
@@ -181,7 +191,7 @@ void Mrm_lid_can_b::readingsPrint() {
 */
 bool Mrm_lid_can_b::started(uint8_t deviceNumber) {
 	if (millis() - (*_lastReadingMs)[deviceNumber] > MRM_LID_CAN_INACTIVITY_ALLOWED_MS || (*_lastReadingMs)[deviceNumber] == 0) {
-		//print("Start mrm-lid-can-b%i \n\r", deviceNumber); 
+		//robotContainer->print("Start mrm-lid-can-b%i \n\r", deviceNumber); 
 		for (uint8_t i = 0; i < 8; i++) { // 8 tries
 			start(deviceNumber, 0);
 			// Wait for 1. message.
@@ -215,12 +225,12 @@ void Mrm_lid_can_b::test(uint8_t deviceNumber, uint16_t betweenTestsMs)
 		for (uint8_t i = 0; i < nextFree; i++) {
 			if (alive(i) && (deviceNumber == 0xFF || i == deviceNumber)) {
 				if (pass++)
-					print(" ");
-				print("%4i ", reading(i));
+					robotContainer->print(" ");
+				robotContainer->print("%4i ", distance(i));
 			}
 		}
 		lastMs = millis();
 		if (pass)
-			print("\n\r");
+			robotContainer->print("\n\r");
 	}
 }
